@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arbre généalogique — Famille Jin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-cream:#FBF1EE;
+    --bordeaux-deep:#4A1526;
+    --bordeaux:#7A2140;
+    --bordeaux-soft:#9C3B5A;
+    --rose:#D98CA6;
+    --rose-light:#F3D2DD;
+    --rose-pale:#FBE7EC;
+    --gold:#C79A4B;
+    --gold-light:#EBD8A6;
+    --ink:#2E1620;
+    --ink-soft:#6B4452;
+    --line:rgba(122,33,64,0.18);
+    --card-bg:#FFFDFB;
+    --shadow:0 8px 24px rgba(74,21,38,0.14);
+    --radius:14px;
+    --spacing-generation:210px;
+    --spacing-sibling:260px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:'IBM Plex Sans',sans-serif;
+    background:var(--bg-cream);
+    color:var(--ink);
+    overflow:hidden;
+  }
+  h1,h2,h3,.display{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    letter-spacing:-0.01em;
+  }
+  ::selection{background:var(--rose-light);}
+
+  /* ---------- Petals background ---------- */
+  #petals{
+    position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  }
+  .petal{
+    position:absolute;
+    top:-40px;
+    opacity:0.55;
+    filter:drop-shadow(0 2px 4px rgba(122,33,64,0.15));
+    animation:fall linear infinite, sway ease-in-out infinite;
+  }
+  @keyframes fall{
+    to{ transform:translateY(112vh); }
+  }
+  @keyframes sway{
+    0%,100%{ margin-left:0px; }
+    50%{ margin-left:40px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .petal{ animation:none; display:none; }
+  }
+
+  /* ---------- Layout shell ---------- */
+  #app{ position:relative; z-index:1; height:100vh; display:flex; flex-direction:column; }
+
+  header{
+    display:flex;align-items:center;gap:18px;
+    padding:14px 22px;
+    background:linear-gradient(180deg, rgba(255,253,251,0.96), rgba(255,253,251,0.85));
+    border-bottom:1px solid var(--line);
+    backdrop-filter:blur(6px);
+    z-index:5;
+  }
+  .brand{ display:flex; align-items:baseline; gap:10px; margin-right:auto; }
+  .brand h1{ font-size:22px; margin:0; color:var(--bordeaux-deep); }
+  .brand .sub{ font-size:12px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
+
+  .toolbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  button{
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:13.5px;
+    border:1px solid var(--line);
+    background:var(--card-bg);
+    color:var(--ink);
+    padding:9px 14px;
+    border-radius:999px;
+    cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;
+    transition:background .15s ease, transform .1s ease, border-color .15s ease;
+  }
+  button:hover:not(:disabled){ background:var(--rose-pale); border-color:var(--bordeaux-soft); }
+  button:active:not(:disabled){ transform:scale(0.97); }
+  button:disabled{ opacity:0.38; cursor:not-allowed; }
+  button.primary{ background:var(--bordeaux); color:#fff; border-color:var(--bordeaux); }
+  button.primary:hover:not(:disabled){ background:var(--bordeaux-deep); }
+  button.ghost{ background:transparent; }
+
+  #adminStatus{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    padding:7px 12px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    background:var(--rose-pale);
+    white-space:nowrap;
+  }
+  #adminStatus.unlocked{
+    color:var(--bordeaux-deep);
+    background:var(--gold-light);
+    border-color:var(--gold);
+  }
+
+  /* ---------- Canvas area ---------- */
+  #viewport{
+    flex:1;
+    position:relative;
+    overflow:hidden;
+    cursor:grab;
+    background:
+      radial-gradient(circle at 20% 10%, rgba(217,140,166,0.10), transparent 45%),
+      radial-gradient(circle at 80% 80%, rgba(199,154,75,0.08), transparent 40%);
+  }
+  #viewport.panning{ cursor:grabbing; }
+  #canvasWrap{
+    position:absolute;
+    top:0; left:0;
+    width:2600px; height:1700px;
+    transform-origin:0 0;
+  }
+  #connectors{ position:absolute; top:0; left:0; width:2600px; height:1700px; overflow:visible; }
+  #nodesLayer{ position:absolute; top:0; left:0; width:2600px; height:1700px; }
+
+  .card{
+    position:absolute;
+    width:190px;
+    background:var(--card-bg);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:12px 12px 10px;
+    cursor:grab;
+    user-select:none;
+    transition:box-shadow .15s ease, border-color .15s ease;
+  }
+  .card:hover{ border-color:var(--bordeaux-soft); }
+  .card.dragging{ cursor:grabbing; z-index:50; box-shadow:0 16px 30px rgba(74,21,38,0.28); }
+  .card.selected{ border-color:var(--bordeaux); box-shadow:0 0 0 3px rgba(122,33,64,0.15), var(--shadow); }
+  .card.patriarch{
+    border-color:var(--gold);
+    background:linear-gradient(180deg, #FFFCF4, var(--card-bg));
+  }
+  .card .thumb{
+    width:100%; height:110px; border-radius:9px; overflow:hidden;
+    background:var(--rose-pale);
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:8px;
+    border:1px solid var(--line);
+    position:relative;
+  }
+  .card .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .card .thumb .placeholder{ font-family:'Fraunces',serif; font-size:34px; color:var(--rose); }
+  .crown{
+    position:absolute; top:-20px; left:50%; transform:translateX(-50%);
+    font-size:22px;
+    animation:crownFloat 2.6s ease-in-out infinite;
+    filter:drop-shadow(0 3px 4px rgba(199,154,75,0.5));
+  }
+  @keyframes crownFloat{
+    0%,100%{ transform:translateX(-50%) translateY(0) rotate(-3deg); }
+    50%{ transform:translateX(-50%) translateY(-4px) rotate(3deg); }
+  }
+  .card .name{ font-family:'Fraunces',serif; font-weight:600; font-size:15.5px; color:var(--bordeaux-deep); line-height:1.2; }
+  .card .birth{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+  .card .tags{ display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
+  .tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    padding:2px 7px;
+    border-radius:6px;
+    background:var(--rose-pale);
+    color:var(--bordeaux);
+    border:1px solid var(--line);
+  }
+  .tag.power{ background:var(--bordeaux-deep); color:var(--rose-light); border-color:var(--bordeaux-deep); }
+
+  #connectors path{ fill:none; stroke:var(--bordeaux-soft); stroke-width:2; opacity:0.75; }
+  #connectors path.spouse{ stroke:var(--gold); stroke-dasharray:5 5; }
+
+  /* zoom controls */
+  .zoomControls{
+    position:absolute; bottom:20px; right:20px; z-index:6;
+    display:flex; flex-direction:column; gap:6px;
+    background:var(--card-bg); padding:6px; border-radius:12px; border:1px solid var(--line); box-shadow:var(--shadow);
+  }
+  .zoomControls button{ padding:8px 10px; border-radius:8px; }
+
+  /* ---------- Side panel ---------- */
+  #panel{
+    position:fixed; top:0; right:0; height:100vh; width:360px;
+    background:var(--card-bg);
+    border-left:1px solid var(--line);
+    box-shadow:-10px 0 30px rgba(74,21,38,0.10);
+    transform:translateX(100%);
+    transition:transform .25s ease;
+    z-index:10;
+    display:flex; flex-direction:column;
+    overflow-y:auto;
+  }
+  #panel.open{ transform:translateX(0); }
+  #panel .panelHeader{
+    padding:18px 20px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; background:var(--card-bg); z-index:2;
+  }
+  #panel .panelHeader h2{ font-size:18px; margin:0; color:var(--bordeaux-deep); }
+  #panel .panelBody{ padding:18px 20px 30px; display:flex; flex-direction:column; gap:16px; }
+  .field label{
+    display:block; font-size:11.5px; font-family:'IBM Plex Mono',monospace;
+    color:var(--ink-soft); margin-bottom:6px; letter-spacing:0.02em;
+  }
+  .field input[type=text], .field input[type=date], .field select, .field textarea{
+    width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--line);
+    font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; background:var(--rose-pale);
+    color:var(--ink);
+  }
+  .field textarea{ resize:vertical; min-height:60px; }
+  .field input:disabled, .field select:disabled, .field textarea:disabled{ opacity:0.55; cursor:not-allowed; }
+
+  .photoRow{ display:flex; align-items:center; gap:12px; }
+  .photoPreview{
+    width:70px; height:70px; border-radius:10px; overflow:hidden; background:var(--rose-pale);
+    border:1px solid var(--line); flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:zoom-in;
+  }
+  .photoPreview img{ width:100%; height:100%; object-fit:cover; }
+  .checkboxRow{ display:flex; align-items:center; gap:8px; }
+  .checkboxRow label{ margin:0; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; color:var(--ink); }
+
+  .linksList{ display:flex; flex-direction:column; gap:8px; }
+  .linkItem{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:var(--rose-pale); border:1px solid var(--line); border-radius:9px; padding:8px 10px;
+    font-size:12.5px;
+  }
+  .linkItem .kind{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--bordeaux); background:var(--rose-light); padding:2px 6px; border-radius:5px; margin-right:6px;}
+  .linkItem button{ padding:4px 8px; font-size:11px; }
+
+  .addLinkForm{ display:flex; gap:6px; }
+  .addLinkForm select{ flex:1; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--rose-pale); font-size:12.5px; }
+
+  .panelFooter{ margin-top:auto; padding:16px 20px; border-top:1px solid var(--line); display:flex; gap:8px; }
+
+  /* ---------- Lightbox ---------- */
+  #lightbox{
+    position:fixed; inset:0; background:rgba(46,22,32,0.86); z-index:100;
+    display:none; align-items:center; justify-content:center; cursor:zoom-out;
+  }
+  #lightbox.open{ display:flex; }
+  #lightbox img{ max-width:88vw; max-height:88vh; border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,0.4); }
+
+  /* ---------- Empty state ---------- */
+  #emptyState{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    text-align:center; color:var(--ink-soft); pointer-events:none;
+  }
+  #emptyState h2{ color:var(--bordeaux-deep); font-size:24px; margin-bottom:8px; }
+  #emptyState p{ font-size:13.5px; max-width:280px; margin:0 auto; }
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--bordeaux-deep); color:#fff; padding:10px 18px; border-radius:999px;
+    font-size:13px; opacity:0; transition:opacity .2s ease, transform .2s ease; z-index:200; pointer-events:none;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  input[type=file]{ display:none; }
+
+  @media (max-width: 720px){
+    #panel{ width:100%; }
+    header{ flex-wrap:wrap; gap:10px; }
+    .brand{ width:100%; }
+  }
+</style>
+</head>
+<body>
+
+<div id="petals"></div>
+
+<div id="app">
+  <header>
+    <div class="brand">
+      <h1>🌸 Famille Jin</h1>
+      <span class="sub" id="peopleCount">0 personnes</span>
+    </div>
+    <div class="toolbar">
+      <span id="adminStatus">🔒 Lecture seule</span>
+      <button id="btnAdmin" class="ghost">🔑 Admin</button>
+      <button id="btnAdd" class="primary" disabled>+ Ajouter</button>
+      <button id="btnArrange" disabled>🧭 Auto-arranger</button>
+      <button id="btnSave" disabled>💾 Enregistrer</button>
+      <button id="btnExport" class="ghost">⇩ Export JSON</button>
+      <button id="btnImport" class="ghost" disabled>⇧ Import JSON</button>
+      <button id="btnReset" class="ghost" disabled>♻︎ Réinitialiser</button>
+    </div>
+  </header>
+
+  <div id="viewport">
+    <div id="canvasWrap">
+      <svg id="connectors"></svg>
+      <div id="nodesLayer"></div>
+    </div>
+    <div id="emptyState">
+      <h2>L'arbre est vide</h2>
+      <p>Débloquez le mode admin puis ajoutez le premier membre de la famille.</p>
+    </div>
+    <div class="zoomControls">
+      <button id="zoomIn" title="Zoomer">＋</button>
+      <button id="zoomReset" title="Réinitialiser la vue">⤾</button>
+      <button id="zoomOut" title="Dézoomer">－</button>
+    </div>
+  </div>
+</div>
+
+<div id="panel">
+  <div class="panelHeader">
+    <h2 id="panelTitle">Fiche</h2>
+    <button id="btnClosePanel" class="ghost">✕</button>
+  </div>
+  <div class="panelBody">
+    <div class="photoRow">
+      <div class="photoPreview" id="photoPreview"><span style="font-family:'Fraunces',serif;font-size:26px;color:var(--rose);">?</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button id="btnUploadPhoto" disabled>Changer la photo</button>
+        <input type="file" id="photoInput" accept="image/*">
+        <button id="btnRemovePhoto" class="ghost" disabled>Retirer</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="fName">Nom</label>
+      <input type="text" id="fName" placeholder="Nom du personnage" disabled>
+    </div>
+    <div class="field">
+      <label for="fBirth">Date de naissance</label>
+      <input type="date" id="fBirth" disabled>
+    </div>
+    <div class="field">
+      <label for="fRang">Rang</label>
+      <select id="fRang" disabled>
+        <option value="">— aucun —</option>
+        <option>Pourfendeur</option>
+        <option>E→S+</option>
+        <option>Z</option>
+        <option>Lune Inférieure</option>
+        <option>Lune Supérieure</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="fPouvoir">Pouvoir sanguinaire</label>
+      <textarea id="fPouvoir" placeholder="Décris la nature du pouvoir…" disabled></textarea>
+    </div>
+    <div class="checkboxRow">
+      <input type="checkbox" id="fPatriarch" disabled>
+      <label for="fPatriarch">👑 Chef de famille (Patriarche)</label>
+    </div>
+
+    <div class="field">
+      <label>Liens de parenté</label>
+      <div class="linksList" id="linksList"></div>
+      <div class="addLinkForm" style="margin-top:8px;">
+        <select id="linkType">
+          <option value="parent">Parent de…</option>
+          <option value="child">Enfant de…</option>
+          <option value="spouse">Conjoint·e de…</option>
+        </select>
+        <select id="linkTarget"></select>
+        <button id="btnAddLink">Lier</button>
+      </div>
+    </div>
+  </div>
+  <div class="panelFooter">
+    <button id="btnDeletePerson" class="ghost" style="color:#B23A4E;" disabled>Supprimer la fiche</button>
+  </div>
+</div>
+
+<div id="lightbox"><img id="lightboxImg" src="" alt=""></div>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* ============ SUPABASE CONFIG ============ */
+  /* Remplace ces deux valeurs par celles de ton projet :
+     Supabase > Project Settings > API > Project URL / anon public key */
+  const SUPABASE_URL = "https://brrfnpndcquhenkgenyx.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycmZucG5kY3F1aGVua2dlbnl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MjEwMjAsImV4cCI6MjEwMzk5NzAyMH0.uxyp8jKCoDEbh8KXhKYjggSAlNL1Yj-kry47GCcFPyI";
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const TABLE = "tree_state";
+  const ROW_ID = "main";
+
+  /* ============ STATE ============ */
+  const DEFAULT_ADMIN_CODE = "sakura"; // change ce code pour verrouiller l'édition
+
+  let state = {
+    people: [],   // {id, name, birth, photo, rang, pouvoir, patriarch, x, y}
+    links: []     // {id, from, to, type: 'parent'|'spouse'}  (parent: from=parent, to=child)
+  };
+
+  let isAdmin = false;
+  let selectedId = null;
+  let scale = 1;
+  let panX = 80, panY = 60;
+  let saveTimer = null;
+
+  const el = (id) => document.getElementById(id);
+  const viewport = el("viewport");
+  const canvasWrap = el("canvasWrap");
+  const nodesLayer = el("nodesLayer");
+  const connectorsSvg = el("connectors");
+
+  /* ============ TOAST ============ */
+  let toastTimer = null;
+  function toast(msg){
+    const t = el("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> t.classList.remove("show"), 2200);
+  }
+
+  /* ============ PETALS BACKGROUND ============ */
+  function initPetals(){
+    const layer = el("petals");
+    const colors = ["#D98CA6","#F3D2DD","#C79A4B","#9C3B5A"];
+    const count = window.innerWidth < 720 ? 10 : 18;
+    for(let i=0;i<count;i++){
+      const p = document.createElementNS("http://www.w3.org/2000/svg","svg");
+      p.setAttribute("viewBox","0 0 24 24");
+      p.setAttribute("width", 14 + Math.random()*14);
+      p.setAttribute("height", 14 + Math.random()*14);
+      p.classList.add("petal");
+      const color = colors[Math.floor(Math.random()*colors.length)];
+      p.innerHTML = `<path d="M12 2 C16 6 16 12 12 16 C8 12 8 6 12 2 Z" fill="${color}"/>`;
+      p.style.left = (Math.random()*100) + "vw";
+      const dur = 10 + Math.random()*14;
+      const swayDur = 3 + Math.random()*3;
+      p.style.animationDuration = `${dur}s, ${swayDur}s`;
+      p.style.animationDelay = `${-Math.random()*dur}s, ${-Math.random()*swayDur}s`;
+      layer.appendChild(p);
+    }
+  }
+
+  /* ============ PERSISTENCE (Supabase) ============ */
+  let remoteUpdatedAt = null; // used to avoid re-rendering our own writes when realtime echoes back
+
+  async function loadFromStorage(){
+    try{
+      const { data, error } = await supabaseClient
+        .from(TABLE)
+        .select("data, updated_at")
+        .eq("id", ROW_ID)
+        .single();
+      if(error) throw error;
+      if(data && data.data && Array.isArray(data.data.people)){
+        state = data.data;
+        remoteUpdatedAt = data.updated_at;
+      }
+    }catch(e){
+      console.error(e);
+      toast("Connexion à Supabase impossible — vérifie l'URL et la clé en haut du script");
+    }
+    render();
+  }
+
+  async function saveToStorage(showToast){
+    try{
+      const nowIso = new Date().toISOString();
+      const { error } = await supabaseClient
+        .from(TABLE)
+        .upsert({ id: ROW_ID, data: state, updated_at: nowIso });
+      if(error) throw error;
+      remoteUpdatedAt = nowIso;
+      if(showToast) toast("Arbre enregistré ✓");
+    }catch(e){
+      toast("Échec de l'enregistrement (vérifie la connexion Supabase)");
+      console.error(e);
+    }
+  }
+
+  function scheduleAutosave(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(()=> saveToStorage(false), 900);
+  }
+
+  function subscribeRealtime(){
+    supabaseClient
+      .channel("tree_state_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: TABLE, filter: `id=eq.${ROW_ID}` }, (payload)=>{
+        const incoming = payload.new;
+        if(!incoming || !incoming.data) return;
+        // ignore the echo of our own save
+        if(incoming.updated_at === remoteUpdatedAt) return;
+        // don't yank the tree from under an admin mid-edit
+        if(dragging) return;
+        state = incoming.data;
+        remoteUpdatedAt = incoming.updated_at;
+        render();
+        toast("Arbre mis à jour par un autre appareil");
+      })
+      .subscribe();
+  }
+
+  /* ============ ADMIN LOCK ============ */
+  function getAdminCode(){
+    return DEFAULT_ADMIN_CODE;
+  }
+
+  async function toggleAdmin(){
+    if(isAdmin){
+      isAdmin = false;
+      updateAdminUI();
+      toast("Mode lecture seule");
+      return;
+    }
+    const code = await getAdminCode();
+    const attempt = prompt("Code admin :");
+    if(attempt === null) return;
+    if(attempt === code){
+      isAdmin = true;
+      updateAdminUI();
+      toast("Mode admin déverrouillé 🔑");
+    }else{
+      toast("Code incorrect");
+    }
+  }
+
+  function updateAdminUI(){
+    const status = el("adminStatus");
+    status.textContent = isAdmin ? "🔓 Mode admin" : "🔒 Lecture seule";
+    status.classList.toggle("unlocked", isAdmin);
+    el("btnAdmin").textContent = isAdmin ? "🔒 Verrouiller" : "🔑 Admin";
+    [
+      "btnAdd","btnArrange","btnSave","btnImport","btnReset",
+      "fName","fBirth","fRang","fPouvoir","fPatriarch",
+      "btnUploadPhoto","btnRemovePhoto","btnAddLink","btnDeletePerson"
+    ].forEach(id=>{
+      const node = el(id);
+      if(node) node.disabled = !isAdmin;
+    });
+    document.querySelectorAll(".card").forEach(c=>{
+      c.style.cursor = isAdmin ? "grab" : "default";
+    });
+    if(selectedId) renderPanelDisabledState();
+  }
+
+  /* ============ RENDER: TREE ============ */
+  function render(){
+    renderCards();
+    renderConnectors();
+    el("peopleCount").textContent = `${state.people.length} personne${state.people.length>1?"s":""}`;
+    el("emptyState").style.display = state.people.length ? "none" : "block";
+    applyTransform();
+  }
+
+  function renderCards(){
+    nodesLayer.innerHTML = "";
+    state.people.forEach(p=>{
+      const card = document.createElement("div");
+      card.className = "card" + (p.patriarch ? " patriarch" : "") + (p.id===selectedId ? " selected" : "");
+      card.style.left = (p.x||0) + "px";
+      card.style.top = (p.y||0) + "px";
+      card.dataset.id = p.id;
+
+      const crown = p.patriarch ? `<div class="crown">👑</div>` : "";
+      const thumb = p.photo
+        ? `<div class="thumb"><img src="${p.photo}" alt=""></div>`
+        : `<div class="thumb"><span class="placeholder">${(p.name||"?").charAt(0).toUpperCase()}</span></div>`;
+      const tags = [];
+      if(p.rang) tags.push(`<span class="tag">${escapeHtml(p.rang)}</span>`);
+      if(p.pouvoir) tags.push(`<span class="tag power">${escapeHtml(truncate(p.pouvoir, 18))}</span>`);
+
+      card.innerHTML = `
+        ${crown}
+        ${thumb}
+        <div class="name">${escapeHtml(p.name || "Sans nom")}</div>
+        <div class="birth">${p.birth ? formatDate(p.birth) : ""}</div>
+        <div class="tags">${tags.join("")}</div>
+      `;
+      card.addEventListener("pointerdown", (e)=> onCardPointerDown(e, p.id));
+      card.addEventListener("click", (e)=>{ e.stopPropagation(); openPanel(p.id); });
+      nodesLayer.appendChild(card);
+    });
+  }
+
+  function renderConnectors(){
+    connectorsSvg.innerHTML = "";
+    const byId = Object.fromEntries(state.people.map(p=>[p.id,p]));
+    state.links.forEach(link=>{
+      const a = byId[link.from], b = byId[link.to];
+      if(!a || !b) return;
+      const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+      if(link.type === "spouse"){
+        path.classList.add("spouse");
+        const y1 = (a.y||0) + 55, y2 = (b.y||0) + 55;
+        const x1 = (a.x||0) + 190, x2 = (b.x||0);
+        const midX = (x1+x2)/2;
+        path.setAttribute("d", `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`);
+      }else{
+        // parent -> child
+        const x1 = (a.x||0) + 95, y1 = (a.y||0) + 178;
+        const x2 = (b.x||0) + 95, y2 = (b.y||0);
+        const midY = (y1+y2)/2;
+        path.setAttribute("d", `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`);
+      }
+      connectorsSvg.appendChild(path);
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function truncate(s, n){ return s.length > n ? s.slice(0,n)+"…" : s; }
+  function formatDate(iso){
+    const d = new Date(iso + "T00:00:00");
+    if(isNaN(d)) return iso;
+    return d.toLocaleDateString("fr-FR", {day:"2-digit", month:"short", year:"numeric"});
+  }
+  function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+
+  /* ============ PAN / ZOOM ============ */
+  function applyTransform(){
+    canvasWrap.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  }
+
+  let panning = false, panStart = {x:0,y:0}, panOrigin = {x:0,y:0};
+  viewport.addEventListener("pointerdown", (e)=>{
+    if(e.target.closest(".card")) return;
+    panning = true;
+    viewport.classList.add("panning");
+    panStart = {x:e.clientX, y:e.clientY};
+    panOrigin = {x:panX, y:panY};
+    deselect();
+  });
+  window.addEventListener("pointermove", (e)=>{
+    if(!panning) return;
+    panX = panOrigin.x + (e.clientX - panStart.x);
+    panY = panOrigin.y + (e.clientY - panStart.y);
+    applyTransform();
+  });
+  window.addEventListener("pointerup", ()=>{
+    panning = false;
+    viewport.classList.remove("panning");
+  });
+
+  viewport.addEventListener("wheel", (e)=>{
+    e.preventDefault();
+    const rect = viewport.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    const worldX = (cx - panX) / scale, worldY = (cy - panY) / scale;
+    const delta = -e.deltaY * 0.0016;
+    const newScale = Math.min(2.2, Math.max(0.35, scale * (1 + delta)));
+    panX = cx - worldX * newScale;
+    panY = cy - worldY * newScale;
+    scale = newScale;
+    applyTransform();
+  }, {passive:false});
+
+  el("zoomIn").addEventListener("click", ()=>{ scale = Math.min(2.2, scale*1.15); applyTransform(); });
+  el("zoomOut").addEventListener("click", ()=>{ scale = Math.max(0.35, scale*0.87); applyTransform(); });
+  el("zoomReset").addEventListener("click", ()=>{ scale=1; panX=80; panY=60; applyTransform(); });
+
+  /* ============ CARD DRAG ============ */
+  let dragging = null, dragStart = {x:0,y:0}, cardOrigin = {x:0,y:0};
+  function onCardPointerDown(e, id){
+    if(!isAdmin) return;
+    e.stopPropagation();
+    const p = state.people.find(p=>p.id===id);
+    if(!p) return;
+    dragging = id;
+    dragStart = {x:e.clientX, y:e.clientY};
+    cardOrigin = {x:p.x||0, y:p.y||0};
+    e.target.closest(".card").classList.add("dragging");
+    window.addEventListener("pointermove", onCardPointerMove);
+    window.addEventListener("pointerup", onCardPointerUp);
+  }
+  function onCardPointerMove(e){
+    if(!dragging) return;
+    const p = state.people.find(p=>p.id===dragging);
+    if(!p) return;
+    p.x = cardOrigin.x + (e.clientX - dragStart.x) / scale;
+    p.y = cardOrigin.y + (e.clientY - dragStart.y) / scale;
+    renderCards();
+    renderConnectors();
+    document.querySelector(`.card[data-id="${dragging}"]`)?.classList.add("dragging");
+    if(dragging===selectedId){
+      document.querySelector(`.card[data-id="${dragging}"]`)?.classList.add("selected");
+    }
+  }
+  function onCardPointerUp(){
+    if(dragging) scheduleAutosave();
+    dragging = null;
+    window.removeEventListener("pointermove", onCardPointerMove);
+    window.removeEventListener("pointerup", onCardPointerUp);
+  }
+
+  /* ============ PANEL ============ */
+  function deselect(){
+    selectedId = null;
+    el("panel").classList.remove("open");
+    document.querySelectorAll(".card.selected").forEach(c=>c.classList.remove("selected"));
+  }
+
+  function openPanel(id){
+    selectedId = id;
+    const p = state.people.find(p=>p.id===id);
+    if(!p) return;
+    el("panelTitle").textContent = p.name || "Sans nom";
+    el("fName").value = p.name || "";
+    el("fBirth").value = p.birth || "";
+    el("fRang").value = p.rang || "";
+    el("fPouvoir").value = p.pouvoir || "";
+    el("fPatriarch").checked = !!p.patriarch;
+    renderPhotoPreview(p.photo);
+    renderLinkTargetOptions(id);
+    renderLinksList(id);
+    el("panel").classList.add("open");
+    renderCards();
+    renderPanelDisabledState();
+  }
+
+  function renderPanelDisabledState(){
+    // keep fields synced to admin state even after re-render
+    updateAdminUI.call(null);
+  }
+
+  el("btnClosePanel").addEventListener("click", deselect);
+
+  function renderPhotoPreview(photo){
+    const box = el("photoPreview");
+    box.innerHTML = photo
+      ? `<img src="${photo}" alt="">`
+      : `<span style="font-family:'Fraunces',serif;font-size:26px;color:var(--rose);">?</span>`;
+    box.onclick = photo ? ()=> openLightbox(photo) : null;
+  }
+
+  function openLightbox(src){
+    el("lightboxImg").src = src;
+    el("lightbox").classList.add("open");
+  }
+  el("lightbox").addEventListener("click", ()=> el("lightbox").classList.remove("open"));
+
+  el("btnUploadPhoto").addEventListener("click", ()=> el("photoInput").click());
+  el("photoInput").addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if(!file || !selectedId) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const p = state.people.find(p=>p.id===selectedId);
+      if(!p) return;
+      p.photo = reader.result;
+      renderPhotoPreview(p.photo);
+      renderCards();
+      scheduleAutosave();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  });
+  el("btnRemovePhoto").addEventListener("click", ()=>{
+    const p = state.people.find(p=>p.id===selectedId);
+    if(!p) return;
+    p.photo = null;
+    renderPhotoPreview(null);
+    renderCards();
+    scheduleAutosave();
+  });
+
+  function bindField(inputId, prop, transform){
+    el(inputId).addEventListener("input", ()=>{
+      const p = state.people.find(p=>p.id===selectedId);
+      if(!p) return;
+      const raw = el(inputId).type === "checkbox" ? el(inputId).checked : el(inputId).value;
+      p[prop] = transform ? transform(raw) : raw;
+      if(prop==="name") el("panelTitle").textContent = p.name || "Sans nom";
+      renderCards();
+      renderConnectors();
+      scheduleAutosave();
+    });
+  }
+  bindField("fName","name");
+  bindField("fBirth","birth");
+  bindField("fRang","rang");
+  bindField("fPouvoir","pouvoir");
+
+  el("fPatriarch").addEventListener("change", ()=>{
+    const checked = el("fPatriarch").checked;
+    state.people.forEach(p=> p.patriarch = false);
+    const p = state.people.find(p=>p.id===selectedId);
+    if(p) p.patriarch = checked;
+    renderCards();
+    scheduleAutosave();
+  });
+
+  el("btnDeletePerson").addEventListener("click", ()=>{
+    if(!selectedId) return;
+    if(!confirm("Supprimer définitivement cette fiche et ses liens ?")) return;
+    state.links = state.links.filter(l => l.from!==selectedId && l.to!==selectedId);
+    state.people = state.people.filter(p => p.id!==selectedId);
+    deselect();
+    render();
+    scheduleAutosave();
+  });
+
+  /* ---- links UI ---- */
+  function renderLinkTargetOptions(excludeId){
+    const sel = el("linkTarget");
+    sel.innerHTML = state.people
+      .filter(p=>p.id!==excludeId)
+      .map(p=>`<option value="${p.id}">${escapeHtml(p.name||"Sans nom")}</option>`)
+      .join("");
+  }
+
+  function renderLinksList(id){
+    const list = el("linksList");
+    const related = state.links.filter(l=> l.from===id || l.to===id);
+    if(!related.length){
+      list.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);">Aucun lien pour l'instant.</div>`;
+      return;
+    }
+    const byId = Object.fromEntries(state.people.map(p=>[p.id,p]));
+    list.innerHTML = related.map(l=>{
+      let label, kind;
+      if(l.type==="spouse"){
+        const otherId = l.from===id ? l.to : l.from;
+        label = byId[otherId]?.name || "?";
+        kind = "conjoint·e";
+      }else if(l.from===id){
+        label = byId[l.to]?.name || "?";
+        kind = "→ enfant";
+      }else{
+        label = byId[l.from]?.name || "?";
+        kind = "→ parent";
+      }
+      return `<div class="linkItem">
+        <span><span class="kind">${kind}</span>${escapeHtml(label)}</span>
+        <button data-link="${l.id}" class="removeLink">✕</button>
+      </div>`;
+    }).join("");
+    list.querySelectorAll(".removeLink").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        if(!isAdmin) return;
+        state.links = state.links.filter(l=>l.id!==btn.dataset.link);
+        renderLinksList(id);
+        renderConnectors();
+        scheduleAutosave();
+      });
+    });
+  }
+
+  el("btnAddLink").addEventListener("click", ()=>{
+    if(!isAdmin || !selectedId) return;
+    const type = el("linkType").value;
+    const targetId = el("linkTarget").value;
+    if(!targetId) return;
+    let from, to, storedType;
+    if(type==="parent"){ from = selectedId; to = targetId; storedType = "parent"; }
+    else if(type==="child"){ from = targetId; to = selectedId; storedType = "parent"; }
+    else { from = selectedId; to = targetId; storedType = "spouse"; }
+
+    const exists = state.links.some(l =>
+      l.type===storedType &&
+      ((l.from===from && l.to===to) || (storedType==="spouse" && l.from===to && l.to===from))
+    );
+    if(exists){ toast("Ce lien existe déjà"); return; }
+
+    state.links.push({id: uid(), from, to, type: storedType});
+    renderLinksList(selectedId);
+    renderConnectors();
+    scheduleAutosave();
+    toast("Lien ajouté");
+  });
+
+  /* ============ ADD PERSON ============ */
+  el("btnAdd").addEventListener("click", ()=>{
+    if(!isAdmin) return;
+    const centerX = (viewport.clientWidth/2 - panX)/scale - 95;
+    const centerY = (viewport.clientHeight/2 - panY)/scale - 90;
+    const p = {
+      id: uid(),
+      name: "Nouveau personnage",
+      birth: "",
+      photo: null,
+      rang: "",
+      pouvoir: "",
+      patriarch: state.people.length===0,
+      x: Math.round(centerX/10)*10,
+      y: Math.round(centerY/10)*10
+    };
+    state.people.push(p);
+    render();
+    openPanel(p.id);
+    scheduleAutosave();
+  });
+
+  /* ============ AUTO-ARRANGE (barycentric) ============ */
+  el("btnArrange").addEventListener("click", ()=>{
+    if(!isAdmin) return;
+    autoArrange();
+    render();
+    scheduleAutosave();
+    toast("Arbre réorganisé");
+  });
+
+  function autoArrange(){
+    const people = state.people;
+    if(!people.length) return;
+    const parentLinks = state.links.filter(l=>l.type==="parent");
+    const childrenOf = {}, parentsOf = {};
+    parentLinks.forEach(l=>{
+      (childrenOf[l.from] ||= []).push(l.to);
+      (parentsOf[l.to] ||= []).push(l.from);
+    });
+
+    // 1. depth via BFS from roots (people with no parent), patriarch nudged to depth 0 if isolated
+    const depth = {};
+    const roots = people.filter(p => !(parentsOf[p.id] && parentsOf[p.id].length)).map(p=>p.id);
+    const queue = roots.map(id=>({id, d:0}));
+    roots.forEach(id => depth[id]=0);
+    const visited = new Set(roots);
+    while(queue.length){
+      const {id,d} = queue.shift();
+      (childrenOf[id]||[]).forEach(cid=>{
+        if(!visited.has(cid) || depth[cid] < d+1){
+          depth[cid] = d+1;
+          if(!visited.has(cid)){ visited.add(cid); queue.push({id:cid, d:d+1}); }
+        }
+      });
+    }
+    people.forEach(p=>{ if(depth[p.id]===undefined) depth[p.id]=0; });
+
+    // 2. group by depth
+    const levels = {};
+    people.forEach(p=>{
+      (levels[depth[p.id]] ||= []).push(p.id);
+    });
+    const maxDepth = Math.max(...Object.keys(levels).map(Number));
+
+    // initial order: as-is
+    let order = {};
+    Object.keys(levels).forEach(d=>{
+      order[d] = levels[d].slice();
+    });
+
+    // 3. barycentric passes (top-down then bottom-up), a few iterations
+    const posInLevel = (d) => {
+      const map = {};
+      order[d].forEach((id,i)=> map[id]=i);
+      return map;
+    };
+    for(let iter=0; iter<4; iter++){
+      // top-down: order[d] based on avg position of parents in d-1
+      for(let d=1; d<=maxDepth; d++){
+        const prevPos = posInLevel(d-1);
+        order[d].sort((a,b)=>{
+          const pa = (parentsOf[a]||[]).map(id=>prevPos[id]).filter(v=>v!==undefined);
+          const pb = (parentsOf[b]||[]).map(id=>prevPos[id]).filter(v=>v!==undefined);
+          const avgA = pa.length ? pa.reduce((s,v)=>s+v,0)/pa.length : Infinity;
+          const avgB = pb.length ? pb.reduce((s,v)=>s+v,0)/pb.length : Infinity;
+          return avgA - avgB;
+        });
+      }
+      // bottom-up: order[d] based on avg position of children in d+1
+      for(let d=maxDepth-1; d>=0; d--){
+        const nextPos = posInLevel(d+1);
+        order[d].sort((a,b)=>{
+          const ca = (childrenOf[a]||[]).map(id=>nextPos[id]).filter(v=>v!==undefined);
+          const cb = (childrenOf[b]||[]).map(id=>nextPos[id]).filter(v=>v!==undefined);
+          const avgA = ca.length ? ca.reduce((s,v)=>s+v,0)/ca.length : Infinity;
+          const avgB = cb.length ? cb.reduce((s,v)=>s+v,0)/cb.length : Infinity;
+          return avgA - avgB;
+        });
+      }
+    }
+
+    // 4. keep spouses adjacent (light touch: swap spouse next to partner if not already)
+    const spouseLinks = state.links.filter(l=>l.type==="spouse");
+    Object.keys(order).forEach(d=>{
+      const arr = order[d];
+      spouseLinks.forEach(l=>{
+        const ia = arr.indexOf(l.from), ib = arr.indexOf(l.to);
+        if(ia!==-1 && ib!==-1 && Math.abs(ia-ib)>1){
+          arr.splice(ib,1);
+          arr.splice(ia+1,0,l.to);
+        }
+      });
+    });
+
+    // 5. assign coordinates
+    const byId = Object.fromEntries(people.map(p=>[p.id,p]));
+    Object.keys(order).forEach(d=>{
+      const arr = order[d];
+      const totalWidth = (arr.length-1) * 260;
+      const startX = 1300 - totalWidth/2 - 95;
+      arr.forEach((id,i)=>{
+        byId[id].x = Math.round(startX + i*260);
+        byId[id].y = Math.round(80 + d*210);
+      });
+    });
+  }
+
+  /* ============ SAVE / EXPORT / IMPORT / RESET ============ */
+  el("btnSave").addEventListener("click", ()=> saveToStorage(true));
+
+  el("btnExport").addEventListener("click", ()=>{
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "arbre-genealogique.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  const importInput = document.createElement("input");
+  importInput.type = "file";
+  importInput.accept = "application/json";
+  importInput.addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const parsed = JSON.parse(reader.result);
+        if(!parsed || !Array.isArray(parsed.people)) throw new Error("format invalide");
+        state = {people: parsed.people, links: parsed.links || []};
+        deselect();
+        render();
+        scheduleAutosave();
+        toast("Import réussi ✓");
+      }catch(err){
+        toast("Fichier JSON invalide");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+  el("btnImport").addEventListener("click", ()=>{ if(isAdmin) importInput.click(); });
+
+  el("btnReset").addEventListener("click", ()=>{
+    if(!isAdmin) return;
+    if(!confirm("Réinitialiser tout l'arbre ? Cette action est irréversible.")) return;
+    state = {people:[], links:[]};
+    deselect();
+    render();
+    saveToStorage(false);
+    toast("Arbre réinitialisé");
+  });
+
+  el("btnAdmin").addEventListener("click", toggleAdmin);
+
+  /* ============ INIT ============ */
+  initPetals();
+  updateAdminUI();
+  loadFromStorage();
+  subscribeRealtime();
+
+})();
+</script>
+</body>
+</html>
