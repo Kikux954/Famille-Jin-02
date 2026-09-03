@@ -155,6 +155,8 @@
     border-color:var(--gold);
     background:linear-gradient(180deg, #FFFCF4, var(--card-bg));
   }
+  .card.genre-homme{ border-left-width:5px; border-left-color:#5B8DEF; }
+  .card.genre-femme{ border-left-width:5px; border-left-color:#E8829F; }
   .card .thumb{
     width:100%; height:110px; border-radius:9px; overflow:hidden;
     background:var(--rose-pale);
@@ -354,6 +356,14 @@
     <div class="field">
       <label for="fName">Nom</label>
       <input type="text" id="fName" placeholder="Nom du personnage" disabled>
+    </div>
+    <div class="field">
+      <label for="fGenre">Genre</label>
+      <select id="fGenre" disabled>
+        <option value="">— non précisé —</option>
+        <option value="homme">Homme</option>
+        <option value="femme">Femme</option>
+      </select>
     </div>
     <div class="field">
       <label for="fRang">Rang</label>
@@ -582,7 +592,7 @@
     el("btnAdmin").textContent = isAdmin ? "🔒 Verrouiller" : "🔑 Admin";
     [
       "btnAdd","btnArrange","btnSave","btnImport","btnReset",
-      "fName","fRang","fLuneNumber","fPouvoir","fPatriarch","fDeceased","fDeceasedDesc",
+      "fName","fGenre","fRang","fLuneNumber","fPouvoir","fPatriarch","fDeceased","fDeceasedDesc",
       "btnUploadPhoto","btnRemovePhoto","btnAddLink","btnDeletePerson"
     ].forEach(id=>{
       const node = el(id);
@@ -607,7 +617,8 @@
     nodesLayer.innerHTML = "";
     state.people.forEach(p=>{
       const card = document.createElement("div");
-      card.className = "card" + (p.patriarch ? " patriarch" : "") + (p.deceased ? " deceased" : "") + (p.id===selectedId ? " selected" : "");
+      const genreClass = p.genre === "homme" ? " genre-homme" : (p.genre === "femme" ? " genre-femme" : "");
+      card.className = "card" + (p.patriarch ? " patriarch" : "") + (p.deceased ? " deceased" : "") + genreClass + (p.id===selectedId ? " selected" : "");
       card.style.left = (p.x||0) + "px";
       card.style.top = (p.y||0) + "px";
       card.dataset.id = p.id;
@@ -764,6 +775,7 @@
     if(!p) return;
     el("panelTitle").textContent = p.name || "Sans nom";
     el("fName").value = p.name || "";
+    el("fGenre").value = p.genre || "";
     el("fRang").value = p.rang || "";
     el("fLuneNumber").value = p.luneNumber || "";
     el("fPouvoir").value = p.pouvoir || "";
@@ -843,6 +855,7 @@
     });
   }
   bindField("fName","name");
+  bindField("fGenre","genre");
   bindField("fRang","rang");
   bindField("fLuneNumber","luneNumber");
   bindField("fPouvoir","pouvoir");
@@ -964,6 +977,7 @@
       id: uid(),
       name: "Nouveau personnage",
       photo: null,
+      genre: "",
       rang: "",
       luneNumber: "",
       pouvoir: "",
