@@ -176,7 +176,13 @@
     50%{ transform:translateX(-50%) translateY(-4px) rotate(3deg); }
   }
   .card .name{ font-family:'Fraunces',serif; font-weight:600; font-size:15.5px; color:var(--bordeaux-deep); line-height:1.2; }
-  .card .deceased-badge{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; font-family:'IBM Plex Mono',monospace; }
+  .card .deceased-block{
+    margin-top:9px;
+    padding-top:8px;
+    border-top:1px dashed var(--line);
+  }
+  .card .deceased-badge{ font-size:11.5px; color:var(--bordeaux-deep); font-family:'IBM Plex Mono',monospace; font-weight:500; }
+  .card .deceased-desc{ font-size:11px; color:var(--ink-soft); margin-top:3px; line-height:1.35; }
   .card.deceased .thumb{ filter:grayscale(70%); opacity:0.85; }
   .card.deceased .name{ color:var(--ink-soft); }
   .card .tags{ display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
@@ -621,8 +627,13 @@
         ${crown}
         ${thumb}
         <div class="name">${escapeHtml(p.name || "Sans nom")}</div>
-        <div class="deceased-badge">${p.deceased ? "✝ Décédé" : ""}</div>
         <div class="tags">${tags.join("")}</div>
+        ${p.deceased ? `
+          <div class="deceased-block">
+            <div class="deceased-badge">✝ Décédé</div>
+            ${p.deceasedDesc ? `<div class="deceased-desc">${escapeHtml(truncate(p.deceasedDesc, 90))}</div>` : ""}
+          </div>
+        ` : ""}
       `;
       card.addEventListener("pointerdown", (e)=> onCardPointerDown(e, p.id));
       card.addEventListener("click", (e)=>{ e.stopPropagation(); openPanel(p.id); });
