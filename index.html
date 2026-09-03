@@ -176,7 +176,8 @@
     50%{ transform:translateX(-50%) translateY(-4px) rotate(3deg); }
   }
   .card .name{ font-family:'Fraunces',serif; font-weight:600; font-size:15.5px; color:var(--bordeaux-deep); line-height:1.2; }
-  .card .birth{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+  .card.deceased{ filter:grayscale(0.35); opacity:0.88; }
+  .card .deceasedTag{ font-size:11px; color:#8a3a4a; margin-top:2px; font-style:italic; }
   .card .tags{ display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
   .tag{
     font-family:'IBM Plex Mono',monospace;
@@ -348,18 +349,33 @@
       <input type="text" id="fName" placeholder="Nom du personnage" disabled>
     </div>
     <div class="field">
-      <label for="fBirth">Date de naissance</label>
-      <input type="date" id="fBirth" disabled>
-    </div>
-    <div class="field">
       <label for="fRang">Rang</label>
       <select id="fRang" disabled>
         <option value="">— aucun —</option>
         <option>Pourfendeur</option>
-        <option>E→S+</option>
-        <option>Z</option>
+        <option>Rang E</option>
+        <option>Rang D</option>
+        <option>Rang C</option>
+        <option>Rang B</option>
+        <option>Rang A</option>
+        <option>Rang A+</option>
+        <option>Rang S</option>
+        <option>Rang S+</option>
+        <option>Rang Z</option>
         <option>Lune Inférieure</option>
         <option>Lune Supérieure</option>
+      </select>
+    </div>
+    <div class="field" id="luneNumberField" style="display:none;">
+      <label for="fLuneNumber">Numéro de lune</label>
+      <select id="fLuneNumber" disabled>
+        <option value="">—</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
       </select>
     </div>
     <div class="field">
@@ -369,6 +385,14 @@
     <div class="checkboxRow">
       <input type="checkbox" id="fPatriarch" disabled>
       <label for="fPatriarch">👑 Chef de famille (Patriarche)</label>
+    </div>
+    <div class="checkboxRow">
+      <input type="checkbox" id="fDeceased" disabled>
+      <label for="fDeceased">✝ Décédé</label>
+    </div>
+    <div class="field" id="deceasedField" style="display:none;">
+      <label for="fDeceasedDesc">Circonstances</label>
+      <textarea id="fDeceasedDesc" placeholder="Décris les circonstances…" disabled></textarea>
     </div>
 
     <div class="field">
@@ -551,7 +575,7 @@
     el("btnAdmin").textContent = isAdmin ? "🔒 Verrouiller" : "🔑 Admin";
     [
       "btnAdd","btnArrange","btnSave","btnImport","btnReset",
-      "fName","fBirth","fRang","fPouvoir","fPatriarch",
+      "fName","fRang","fLuneNumber","fPouvoir","fPatriarch","fDeceased","fDeceasedDesc",
       "btnUploadPhoto","btnRemovePhoto","btnAddLink","btnDeletePerson"
     ].forEach(id=>{
       const node = el(id);
@@ -576,7 +600,7 @@
     nodesLayer.innerHTML = "";
     state.people.forEach(p=>{
       const card = document.createElement("div");
-      card.className = "card" + (p.patriarch ? " patriarch" : "") + (p.id===selectedId ? " selected" : "");
+      card.className = "card" + (p.patriarch ? " patriarch" : "") + (p.deceased ? " deceased" : "") + (p.id===selectedId ? " selected" : "");
       card.style.left = (p.x||0) + "px";
       card.style.top = (p.y||0) + "px";
       card.dataset.id = p.id;
@@ -586,14 +610,18 @@
         ? `<div class="thumb"><img src="${p.photo}" alt=""></div>`
         : `<div class="thumb"><span class="placeholder">${(p.name||"?").charAt(0).toUpperCase()}</span></div>`;
       const tags = [];
-      if(p.rang) tags.push(`<span class="tag">${escapeHtml(p.rang)}</span>`);
+      if(p.rang){
+        const isLune = p.rang==="Lune Inférieure" || p.rang==="Lune Supérieure";
+        const rangLabel = (isLune && p.luneNumber) ? `${p.rang} ${p.luneNumber}` : p.rang;
+        tags.push(`<span class="tag">${escapeHtml(rangLabel)}</span>`);
+      }
       if(p.pouvoir) tags.push(`<span class="tag power">${escapeHtml(truncate(p.pouvoir, 18))}</span>`);
 
       card.innerHTML = `
         ${crown}
         ${thumb}
         <div class="name">${escapeHtml(p.name || "Sans nom")}</div>
-        <div class="birth">${p.birth ? formatDate(p.birth) : ""}</div>
+        ${p.deceased ? `<div class="deceasedTag">✝ Décédé${p.deceasedDesc ? " — " + escapeHtml(truncate(p.deceasedDesc, 30)) : ""}</div>` : ""}
         <div class="tags">${tags.join("")}</div>
       `;
       card.addEventListener("pointerdown", (e)=> onCardPointerDown(e, p.id));
@@ -630,11 +658,6 @@
     return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   }
   function truncate(s, n){ return s.length > n ? s.slice(0,n)+"…" : s; }
-  function formatDate(iso){
-    const d = new Date(iso + "T00:00:00");
-    if(isNaN(d)) return iso;
-    return d.toLocaleDateString("fr-FR", {day:"2-digit", month:"short", year:"numeric"});
-  }
   function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
 
   /* ============ PAN / ZOOM ============ */
@@ -726,16 +749,29 @@
     if(!p) return;
     el("panelTitle").textContent = p.name || "Sans nom";
     el("fName").value = p.name || "";
-    el("fBirth").value = p.birth || "";
     el("fRang").value = p.rang || "";
+    el("fLuneNumber").value = p.luneNumber || "";
     el("fPouvoir").value = p.pouvoir || "";
     el("fPatriarch").checked = !!p.patriarch;
+    el("fDeceased").checked = !!p.deceased;
+    el("fDeceasedDesc").value = p.deceasedDesc || "";
+    updateLuneFieldVisibility(p.rang);
+    updateDeceasedFieldVisibility(p.deceased);
     renderPhotoPreview(p.photo);
     renderLinkTargetOptions(id);
     renderLinksList(id);
     el("panel").classList.add("open");
     renderCards();
     renderPanelDisabledState();
+  }
+
+  function updateLuneFieldVisibility(rang){
+    const isLune = rang==="Lune Inférieure" || rang==="Lune Supérieure";
+    el("luneNumberField").style.display = isLune ? "block" : "none";
+  }
+
+  function updateDeceasedFieldVisibility(deceased){
+    el("deceasedField").style.display = deceased ? "block" : "none";
   }
 
   function renderPanelDisabledState(){
@@ -797,15 +833,37 @@
     });
   }
   bindField("fName","name");
-  bindField("fBirth","birth");
-  bindField("fRang","rang");
   bindField("fPouvoir","pouvoir");
+  bindField("fLuneNumber","luneNumber");
+  bindField("fDeceasedDesc","deceasedDesc");
+
+  el("fRang").addEventListener("input", ()=>{
+    const p = state.people.find(p=>p.id===selectedId);
+    if(!p) return;
+    p.rang = el("fRang").value;
+    if(p.rang !== "Lune Inférieure" && p.rang !== "Lune Supérieure"){
+      p.luneNumber = "";
+      el("fLuneNumber").value = "";
+    }
+    updateLuneFieldVisibility(p.rang);
+    renderCards();
+    scheduleAutosave();
+  });
 
   el("fPatriarch").addEventListener("change", ()=>{
     const checked = el("fPatriarch").checked;
     state.people.forEach(p=> p.patriarch = false);
     const p = state.people.find(p=>p.id===selectedId);
     if(p) p.patriarch = checked;
+    renderCards();
+    scheduleAutosave();
+  });
+
+  el("fDeceased").addEventListener("change", ()=>{
+    const checked = el("fDeceased").checked;
+    const p = state.people.find(p=>p.id===selectedId);
+    if(p) p.deceased = checked;
+    updateDeceasedFieldVisibility(checked);
     renderCards();
     scheduleAutosave();
   });
@@ -897,11 +955,13 @@
     const p = {
       id: uid(),
       name: "Nouveau personnage",
-      birth: "",
       photo: null,
       rang: "",
+      luneNumber: "",
       pouvoir: "",
       patriarch: state.people.length===0,
+      deceased: false,
+      deceasedDesc: "",
       x: Math.round(centerX/10)*10,
       y: Math.round(centerY/10)*10
     };
