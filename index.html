@@ -699,13 +699,14 @@
       );
 
       if(isCouple){
-        // une seule ligne partant du milieu du couple
-        const a = byId[parents[0]], c = byId[parents[1]];
-        const midX = ((a.x||0)+95 + (c.x||0)+95) / 2;
-        const y1 = Math.max((a.y||0)+178, (c.y||0)+178);
-        const midY = (y1+y2)/2;
+        // la ligne part du milieu exact de la ligne pointillée du couple
+        let left = byId[parents[0]], right = byId[parents[1]];
+        if((left.x||0) > (right.x||0)){ const tmp = left; left = right; right = tmp; }
+        const coupleMidX = ((left.x||0)+190 + (right.x||0)) / 2;
+        const coupleMidY = ((left.y||0)+55 + (right.y||0)+55) / 2;
+        const midY = (coupleMidY+y2)/2;
         const path = document.createElementNS("http://www.w3.org/2000/svg","path");
-        path.setAttribute("d", `M${midX},${y1} C${midX},${midY} ${x2},${midY} ${x2},${y2}`);
+        path.setAttribute("d", `M${coupleMidX},${coupleMidY} C${coupleMidX},${midY} ${x2},${midY} ${x2},${y2}`);
         connectorsSvg.appendChild(path);
       }else{
         parents.forEach(pid=>{
