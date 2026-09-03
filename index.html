@@ -683,6 +683,14 @@
     const byId = Object.fromEntries(state.people.map(p=>[p.id,p]));
     const spouseLinks = state.links.filter(l=>l.type==="spouse");
     const parentLinks = state.links.filter(l=>l.type==="parent");
+    const STEM = 24; // courte descente fixe sous le(s) parent(s) avant le coude horizontal
+
+    const cardHeight = (id) => {
+      const node = nodesLayer.querySelector(`.card[data-id="${id}"]`);
+      return node ? node.offsetHeight : 178;
+    };
+    const centerY = (id) => (byId[id].y||0) + cardHeight(id)/2;
+    const bottomY = (id) => (byId[id].y||0) + cardHeight(id);
 
     // liens de couple (courbe horizontale)
     spouseLinks.forEach(link=>{
@@ -690,7 +698,7 @@
       if(!a || !b) return;
       const path = document.createElementNS("http://www.w3.org/2000/svg","path");
       path.classList.add("spouse");
-      const y1 = (a.y||0) + 55, y2 = (b.y||0) + 55;
+      const y1 = centerY(link.from), y2 = centerY(link.to);
       const x1 = (a.x||0) + 190, x2 = (b.x||0);
       const midX = (x1+x2)/2;
       path.setAttribute("d", `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`);
@@ -713,21 +721,20 @@
 
       if(isCouple){
         // la ligne part du milieu exact de la ligne pointillée du couple
-        let left = byId[parents[0]], right = byId[parents[1]];
-        if((left.x||0) > (right.x||0)){ const tmp = left; left = right; right = tmp; }
-        const coupleMidX = ((left.x||0)+190 + (right.x||0)) / 2;
-        const coupleMidY = ((left.y||0)+55 + (right.y||0)+55) / 2;
-        const midY = (coupleMidY+y2)/2;
+        let leftId = parents[0], rightId = parents[1];
+        if((byId[leftId].x||0) > (byId[rightId].x||0)){ const tmp=leftId; leftId=rightId; rightId=tmp; }
+        const coupleMidX = ((byId[leftId].x||0)+190 + (byId[rightId].x||0)) / 2;
+        const coupleMidY = (centerY(leftId) + centerY(rightId)) / 2;
+        const elbowY = Math.min(coupleMidY + STEM, y2 - 4);
         const path = document.createElementNS("http://www.w3.org/2000/svg","path");
-        path.setAttribute("d", `M${coupleMidX},${coupleMidY} L${coupleMidX},${midY} L${x2},${midY} L${x2},${y2}`);
+        path.setAttribute("d", `M${coupleMidX},${coupleMidY} L${coupleMidX},${elbowY} L${x2},${elbowY} L${x2},${y2}`);
         connectorsSvg.appendChild(path);
       }else{
         parents.forEach(pid=>{
-          const a = byId[pid];
-          const x1 = (a.x||0) + 95, y1 = (a.y||0) + 178;
-          const midY = (y1+y2)/2;
+          const x1 = (byId[pid].x||0) + 95, y1 = bottomY(pid);
+          const elbowY = Math.min(y1 + STEM, y2 - 4);
           const path = document.createElementNS("http://www.w3.org/2000/svg","path");
-          path.setAttribute("d", `M${x1},${y1} L${x1},${midY} L${x2},${midY} L${x2},${y2}`);
+          path.setAttribute("d", `M${x1},${y1} L${x1},${elbowY} L${x2},${elbowY} L${x2},${y2}`);
           connectorsSvg.appendChild(path);
         });
       }
