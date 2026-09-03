@@ -184,7 +184,7 @@
     border-top:1px dashed var(--line);
   }
   .card .deceased-badge{ font-size:11.5px; color:var(--bordeaux-deep); font-family:'IBM Plex Mono',monospace; font-weight:500; }
-  .card .deceased-desc{ font-size:11px; color:var(--ink-soft); margin-top:3px; line-height:1.35; }
+  .card .deceased-desc{ font-size:11px; color:var(--ink-soft); margin-top:3px; line-height:1.4; white-space:pre-wrap; word-wrap:break-word; }
   .card.deceased .thumb{ filter:grayscale(70%); opacity:0.85; }
   .card.deceased .name{ color:var(--ink-soft); }
   .card .tags{ display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
@@ -397,7 +397,16 @@
     </div>
     <div class="field">
       <label for="fPouvoir">Pouvoir sanguinaire</label>
-      <textarea id="fPouvoir" placeholder="Décris la nature du pouvoir…" disabled></textarea>
+      <select id="fPouvoir" disabled>
+        <option value="">— aucun —</option>
+        <option>Glace</option>
+        <option>Acide</option>
+        <option>Sombreclaire</option>
+        <option>Flamme Spectrale</option>
+        <option>Sang</option>
+        <option>Ronce</option>
+        <option>Résonnance</option>
+      </select>
     </div>
     <div class="checkboxRow">
       <input type="checkbox" id="fPatriarch" disabled>
@@ -632,7 +641,7 @@
         : "";
       const tags = [];
       if(rangLabel) tags.push(`<span class="tag">${escapeHtml(rangLabel)}</span>`);
-      if(p.pouvoir) tags.push(`<span class="tag power">${escapeHtml(truncate(p.pouvoir, 18))}</span>`);
+      if(p.pouvoir) tags.push(`<span class="tag power">${escapeHtml(p.pouvoir)}</span>`);
 
       card.innerHTML = `
         ${crown}
@@ -642,7 +651,7 @@
         ${p.deceased ? `
           <div class="deceased-block">
             <div class="deceased-badge">✝ Décédé</div>
-            ${p.deceasedDesc ? `<div class="deceased-desc">${escapeHtml(truncate(p.deceasedDesc, 90))}</div>` : ""}
+            ${p.deceasedDesc ? `<div class="deceased-desc">${escapeHtml(p.deceasedDesc)}</div>` : ""}
           </div>
         ` : ""}
       `;
@@ -659,24 +668,55 @@
   function renderConnectors(){
     connectorsSvg.innerHTML = "";
     const byId = Object.fromEntries(state.people.map(p=>[p.id,p]));
-    state.links.forEach(link=>{
+    const spouseLinks = state.links.filter(l=>l.type==="spouse");
+    const parentLinks = state.links.filter(l=>l.type==="parent");
+
+    // liens de couple (courbe horizontale)
+    spouseLinks.forEach(link=>{
       const a = byId[link.from], b = byId[link.to];
       if(!a || !b) return;
       const path = document.createElementNS("http://www.w3.org/2000/svg","path");
-      if(link.type === "spouse"){
-        path.classList.add("spouse");
-        const y1 = (a.y||0) + 55, y2 = (b.y||0) + 55;
-        const x1 = (a.x||0) + 190, x2 = (b.x||0);
-        const midX = (x1+x2)/2;
-        path.setAttribute("d", `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`);
-      }else{
-        // parent -> child
-        const x1 = (a.x||0) + 95, y1 = (a.y||0) + 178;
-        const x2 = (b.x||0) + 95, y2 = (b.y||0);
-        const midY = (y1+y2)/2;
-        path.setAttribute("d", `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`);
-      }
+      path.classList.add("spouse");
+      const y1 = (a.y||0) + 55, y2 = (b.y||0) + 55;
+      const x1 = (a.x||0) + 190, x2 = (b.x||0);
+      const midX = (x1+x2)/2;
+      path.setAttribute("d", `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`);
       connectorsSvg.appendChild(path);
+    });
+
+    // liens parent -> enfant, regroupés par enfant
+    const byChild = {};
+    parentLinks.forEach(l=>{ (byChild[l.to] ||= []).push(l.from); });
+
+    Object.keys(byChild).forEach(childId=>{
+      const b = byId[childId];
+      if(!b) return;
+      const parents = byChild[childId].filter(pid=>byId[pid]);
+      const x2 = (b.x||0) + 95, y2 = (b.y||0);
+
+      const isCouple = parents.length===2 && spouseLinks.some(l=>
+        (l.from===parents[0] && l.to===parents[1]) || (l.from===parents[1] && l.to===parents[0])
+      );
+
+      if(isCouple){
+        // une seule ligne partant du milieu du couple
+        const a = byId[parents[0]], c = byId[parents[1]];
+        const midX = ((a.x||0)+95 + (c.x||0)+95) / 2;
+        const y1 = Math.max((a.y||0)+178, (c.y||0)+178);
+        const midY = (y1+y2)/2;
+        const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+        path.setAttribute("d", `M${midX},${y1} C${midX},${midY} ${x2},${midY} ${x2},${y2}`);
+        connectorsSvg.appendChild(path);
+      }else{
+        parents.forEach(pid=>{
+          const a = byId[pid];
+          const x1 = (a.x||0) + 95, y1 = (a.y||0) + 178;
+          const midY = (y1+y2)/2;
+          const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+          path.setAttribute("d", `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`);
+          connectorsSvg.appendChild(path);
+        });
+      }
     });
   }
 
@@ -1095,6 +1135,29 @@
       arr.forEach((id,i)=>{
         byId[id].x = Math.round(startX + i*260);
         byId[id].y = Math.round(80 + d*210);
+      });
+
+      // 5b. centrer chaque fratrie sous le milieu de son couple de parents
+      const groups = {};
+      arr.forEach(id=>{
+        const parents = (parentsOf[id]||[]).filter(pid=>byId[pid]);
+        if(parents.length===2){
+          const isCouple = spouseLinks.some(l=>
+            (l.from===parents[0] && l.to===parents[1]) || (l.from===parents[1] && l.to===parents[0])
+          );
+          if(isCouple){
+            const key = parents.slice().sort().join("|");
+            (groups[key] ||= []).push(id);
+          }
+        }
+      });
+      Object.keys(groups).forEach(key=>{
+        const childIds = groups[key];
+        const [pa, pb] = key.split("|");
+        const parentCenterX = ((byId[pa].x+95) + (byId[pb].x+95)) / 2;
+        const currentCenterX = childIds.reduce((s,id)=>s+byId[id].x,0)/childIds.length + 95;
+        const shift = Math.round(parentCenterX - currentCenterX);
+        childIds.forEach(id=> byId[id].x += shift);
       });
     });
   }
