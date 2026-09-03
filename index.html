@@ -399,13 +399,13 @@
       <label for="fPouvoir">Pouvoir sanguinaire</label>
       <select id="fPouvoir" disabled>
         <option value="">— aucun —</option>
-        <option>Glace</option>
-        <option>Acide</option>
-        <option>Sombreclaire</option>
-        <option>Flamme Spectrale</option>
-        <option>Sang</option>
-        <option>Ronce</option>
-        <option>Résonnance</option>
+        <option value="Glace">❄️ Glace</option>
+        <option value="Acide">🧪 Acide</option>
+        <option value="Sombreclaire">🌓 Sombreclaire</option>
+        <option value="Flamme Spectrale">🔥 Flamme Spectrale</option>
+        <option value="Sang">🩸 Sang</option>
+        <option value="Ronce">🥀 Ronce</option>
+        <option value="Résonnance">🔊 Résonnance</option>
       </select>
     </div>
     <div class="checkboxRow">
@@ -641,7 +641,10 @@
         : "";
       const tags = [];
       if(rangLabel) tags.push(`<span class="tag">${escapeHtml(rangLabel)}</span>`);
-      if(p.pouvoir) tags.push(`<span class="tag power">${escapeHtml(p.pouvoir)}</span>`);
+      if(p.pouvoir){
+        const meta = POWER_META[p.pouvoir] || {emoji:"✨", color:"var(--bordeaux-deep)"};
+        tags.push(`<span class="tag power" style="background:${meta.color};border-color:${meta.color};">${meta.emoji} ${escapeHtml(p.pouvoir)}</span>`);
+      }
 
       card.innerHTML = `
         ${crown}
@@ -664,6 +667,16 @@
   function isLuneRang(rang){
     return rang === "Lune Inférieure" || rang === "Lune Supérieure";
   }
+
+  const POWER_META = {
+    "Glace": {emoji:"❄️", color:"#4A90D9"},
+    "Acide": {emoji:"🧪", color:"#5B9B4A"},
+    "Sombreclaire": {emoji:"🌓", color:"#5A4A8C"},
+    "Flamme Spectrale": {emoji:"🔥", color:"#8C4AA8"},
+    "Sang": {emoji:"🩸", color:"#B23A4E"},
+    "Ronce": {emoji:"🥀", color:"#6B8E4E"},
+    "Résonnance": {emoji:"🔊", color:"#3A8C9B"}
+  };
 
   function renderConnectors(){
     connectorsSvg.innerHTML = "";
