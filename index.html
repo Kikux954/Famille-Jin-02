@@ -719,7 +719,7 @@
         const coupleMidY = ((left.y||0)+55 + (right.y||0)+55) / 2;
         const midY = (coupleMidY+y2)/2;
         const path = document.createElementNS("http://www.w3.org/2000/svg","path");
-        path.setAttribute("d", `M${coupleMidX},${coupleMidY} C${coupleMidX},${midY} ${x2},${midY} ${x2},${y2}`);
+        path.setAttribute("d", `M${coupleMidX},${coupleMidY} L${coupleMidX},${midY} L${x2},${midY} L${x2},${y2}`);
         connectorsSvg.appendChild(path);
       }else{
         parents.forEach(pid=>{
@@ -727,7 +727,7 @@
           const x1 = (a.x||0) + 95, y1 = (a.y||0) + 178;
           const midY = (y1+y2)/2;
           const path = document.createElementNS("http://www.w3.org/2000/svg","path");
-          path.setAttribute("d", `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`);
+          path.setAttribute("d", `M${x1},${y1} L${x1},${midY} L${x2},${midY} L${x2},${y2}`);
           connectorsSvg.appendChild(path);
         });
       }
