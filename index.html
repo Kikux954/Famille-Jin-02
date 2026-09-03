@@ -176,8 +176,9 @@
     50%{ transform:translateX(-50%) translateY(-4px) rotate(3deg); }
   }
   .card .name{ font-family:'Fraunces',serif; font-weight:600; font-size:15.5px; color:var(--bordeaux-deep); line-height:1.2; }
-  .card.deceased{ filter:grayscale(0.35); opacity:0.88; }
-  .card .deceasedTag{ font-size:11px; color:#8a3a4a; margin-top:2px; font-style:italic; }
+  .card .deceased-badge{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; font-family:'IBM Plex Mono',monospace; }
+  .card.deceased .thumb{ filter:grayscale(70%); opacity:0.85; }
+  .card.deceased .name{ color:var(--ink-soft); }
   .card .tags{ display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
   .tag{
     font-family:'IBM Plex Mono',monospace;
@@ -367,9 +368,9 @@
       </select>
     </div>
     <div class="field" id="luneNumberField" style="display:none;">
-      <label for="fLuneNumber">Numéro de lune</label>
+      <label for="fLuneNumber">Numéro</label>
       <select id="fLuneNumber" disabled>
-        <option value="">—</option>
+        <option value="">— aucun —</option>
         <option value="1">1</option>
         <option value="2">2</option>
         <option value="3">3</option>
@@ -390,9 +391,9 @@
       <input type="checkbox" id="fDeceased" disabled>
       <label for="fDeceased">✝ Décédé</label>
     </div>
-    <div class="field" id="deceasedField" style="display:none;">
+    <div class="field" id="deceasedDescField" style="display:none;">
       <label for="fDeceasedDesc">Circonstances</label>
-      <textarea id="fDeceasedDesc" placeholder="Décris les circonstances…" disabled></textarea>
+      <textarea id="fDeceasedDesc" placeholder="Comment, quand, dans quelles circonstances…" disabled></textarea>
     </div>
 
     <div class="field">
@@ -436,7 +437,7 @@
   const DEFAULT_ADMIN_CODE = "sakura"; // change ce code pour verrouiller l'édition
 
   let state = {
-    people: [],   // {id, name, birth, photo, rang, pouvoir, patriarch, x, y}
+    people: [],   // {id, name, photo, rang, luneNumber, pouvoir, patriarch, deceased, deceasedDesc, x, y}
     links: []     // {id, from, to, type: 'parent'|'spouse'}  (parent: from=parent, to=child)
   };
 
@@ -609,25 +610,28 @@
       const thumb = p.photo
         ? `<div class="thumb"><img src="${p.photo}" alt=""></div>`
         : `<div class="thumb"><span class="placeholder">${(p.name||"?").charAt(0).toUpperCase()}</span></div>`;
+      const rangLabel = p.rang
+        ? (isLuneRang(p.rang) && p.luneNumber ? `${p.rang} n°${p.luneNumber}` : p.rang)
+        : "";
       const tags = [];
-      if(p.rang){
-        const isLune = p.rang==="Lune Inférieure" || p.rang==="Lune Supérieure";
-        const rangLabel = (isLune && p.luneNumber) ? `${p.rang} ${p.luneNumber}` : p.rang;
-        tags.push(`<span class="tag">${escapeHtml(rangLabel)}</span>`);
-      }
+      if(rangLabel) tags.push(`<span class="tag">${escapeHtml(rangLabel)}</span>`);
       if(p.pouvoir) tags.push(`<span class="tag power">${escapeHtml(truncate(p.pouvoir, 18))}</span>`);
 
       card.innerHTML = `
         ${crown}
         ${thumb}
         <div class="name">${escapeHtml(p.name || "Sans nom")}</div>
-        ${p.deceased ? `<div class="deceasedTag">✝ Décédé${p.deceasedDesc ? " — " + escapeHtml(truncate(p.deceasedDesc, 30)) : ""}</div>` : ""}
+        <div class="deceased-badge">${p.deceased ? "✝ Décédé" : ""}</div>
         <div class="tags">${tags.join("")}</div>
       `;
       card.addEventListener("pointerdown", (e)=> onCardPointerDown(e, p.id));
       card.addEventListener("click", (e)=>{ e.stopPropagation(); openPanel(p.id); });
       nodesLayer.appendChild(card);
     });
+  }
+
+  function isLuneRang(rang){
+    return rang === "Lune Inférieure" || rang === "Lune Supérieure";
   }
 
   function renderConnectors(){
@@ -755,8 +759,7 @@
     el("fPatriarch").checked = !!p.patriarch;
     el("fDeceased").checked = !!p.deceased;
     el("fDeceasedDesc").value = p.deceasedDesc || "";
-    updateLuneFieldVisibility(p.rang);
-    updateDeceasedFieldVisibility(p.deceased);
+    updateConditionalFields(p);
     renderPhotoPreview(p.photo);
     renderLinkTargetOptions(id);
     renderLinksList(id);
@@ -765,13 +768,9 @@
     renderPanelDisabledState();
   }
 
-  function updateLuneFieldVisibility(rang){
-    const isLune = rang==="Lune Inférieure" || rang==="Lune Supérieure";
-    el("luneNumberField").style.display = isLune ? "block" : "none";
-  }
-
-  function updateDeceasedFieldVisibility(deceased){
-    el("deceasedField").style.display = deceased ? "block" : "none";
+  function updateConditionalFields(p){
+    el("luneNumberField").style.display = isLuneRang(p.rang) ? "block" : "none";
+    el("deceasedDescField").style.display = p.deceased ? "block" : "none";
   }
 
   function renderPanelDisabledState(){
@@ -833,21 +832,16 @@
     });
   }
   bindField("fName","name");
-  bindField("fPouvoir","pouvoir");
+  bindField("fRang","rang");
   bindField("fLuneNumber","luneNumber");
-  bindField("fDeceasedDesc","deceasedDesc");
+  bindField("fPouvoir","pouvoir");
 
-  el("fRang").addEventListener("input", ()=>{
+  el("fRang").addEventListener("change", ()=>{
     const p = state.people.find(p=>p.id===selectedId);
     if(!p) return;
-    p.rang = el("fRang").value;
-    if(p.rang !== "Lune Inférieure" && p.rang !== "Lune Supérieure"){
-      p.luneNumber = "";
-      el("fLuneNumber").value = "";
-    }
-    updateLuneFieldVisibility(p.rang);
-    renderCards();
-    scheduleAutosave();
+    if(!isLuneRang(p.rang)) p.luneNumber = "";
+    el("fLuneNumber").value = p.luneNumber || "";
+    updateConditionalFields(p);
   });
 
   el("fPatriarch").addEventListener("change", ()=>{
@@ -860,13 +854,16 @@
   });
 
   el("fDeceased").addEventListener("change", ()=>{
-    const checked = el("fDeceased").checked;
     const p = state.people.find(p=>p.id===selectedId);
-    if(p) p.deceased = checked;
-    updateDeceasedFieldVisibility(checked);
+    if(!p) return;
+    p.deceased = el("fDeceased").checked;
+    if(!p.deceased) p.deceasedDesc = "";
+    el("fDeceasedDesc").value = p.deceasedDesc || "";
+    updateConditionalFields(p);
     renderCards();
     scheduleAutosave();
   });
+  bindField("fDeceasedDesc","deceasedDesc");
 
   el("btnDeletePerson").addEventListener("click", ()=>{
     if(!selectedId) return;
